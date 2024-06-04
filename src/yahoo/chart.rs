@@ -98,7 +98,10 @@ ez_serde!(Response { chart: Chart });
 async fn load(url: &Url) -> Result<Data> {
    // make the call - we do not really expect this to fail.
    // ie - we won't 404 if the symbol doesn't exist
-   let response = reqwest::get(url.clone()).await.context(error::RequestFailed)?;
+   let client = reqwest::ClientBuilder::new()
+        .user_agent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+        .build().expect("reqwest client");
+   let response = client.get(url.clone()).send().await.context(error::RequestFailed)?;
    ensure!(
       response.status().is_success(),
       error::CallFailed{ url: response.url().to_string(), status: response.status().as_u16() }
