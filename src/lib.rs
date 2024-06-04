@@ -1,3 +1,4 @@
+#![allow(soft_unstable)]
 //! # Yahoo Finance
 //!
 //! Yahoo! provides some great market data and this is a library to easily get
