@@ -61,8 +61,8 @@ impl Timestamped for Dividend {
 }
 
 ez_serde!(Split {
-    denominator: u8,
-    numerator: u8,
+    denominator: f64,
+    numerator: f64,
     #[serde(rename = "splitRatio")]
     split_ratio: String,
     #[serde(rename = "date")]
