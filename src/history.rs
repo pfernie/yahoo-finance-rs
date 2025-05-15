@@ -9,53 +9,122 @@ fn extract_events(data: yahoo::Data) -> (Vec<yahoo::Dividend>, Vec<yahoo::Split>
         Some(events) => events,
     };
     // The API returns events as a map by date; here we simply flatten to a `Vec`
-    let dividends = events.dividends.map(|ds| ds.into_iter().map(|(_date, mut dividend)| { dividend.timestamp *= 1000; dividend }).collect()).unwrap_or_else(Vec::new);
-    let splits = events.splits.map(|ss| ss.into_iter().map(|(_date, mut split)| { split.timestamp *= 1000; split }).collect()).unwrap_or_else(Vec::new);
+    let dividends = events
+        .dividends
+        .map(|ds| {
+            ds.into_iter()
+                .map(|(_date, mut dividend)| {
+                    dividend.timestamp *= 1000;
+                    dividend
+                })
+                .collect()
+        })
+        .unwrap_or_else(Vec::new);
+    let splits = events
+        .splits
+        .map(|ss| {
+            ss.into_iter()
+                .map(|(_date, mut split)| {
+                    split.timestamp *= 1000;
+                    split
+                })
+                .collect()
+        })
+        .unwrap_or_else(Vec::new);
     (dividends, splits)
 }
 
-fn aggregate_bars_and_extract_events(data: yahoo::Data) -> Result<(Vec<Bar>, Vec<yahoo::Dividend>, Vec<yahoo::Split>)> {
-   let mut result = Vec::new();
-   let timestamps = &data.timestamps;
-   let quotes = &data.indicators.quotes;
+fn aggregate_bars_and_extract_events(
+    data: yahoo::Data,
+) -> Result<(Vec<Bar>, Vec<yahoo::Dividend>, Vec<yahoo::Split>)> {
+    let mut result = Vec::new();
+    let timestamps = &data.timestamps;
+    let quotes = &data.indicators.quotes;
 
-   // if we have no timestamps & no quotes we'll assume there is no data
-   if timestamps.is_empty() && quotes.is_empty() {
-       let (dividends, splits) = extract_events(data);
-       return Ok((result, dividends, splits));
-   }
+    // if we have no timestamps & no quotes we'll assume there is no data
+    if timestamps.is_empty() && quotes.is_empty() {
+        let (dividends, splits) = extract_events(data);
+        return Ok((result, dividends, splits));
+    }
 
-   // otherwise see if one is empty and reflects bad data from Yahoo!
-   ensure!(!timestamps.is_empty(), error::MissingData { reason: "no timestamps for OHLCV data" });
-   ensure!(!quotes.is_empty(), error::MissingData { reason: "no OHLCV data" });
+    // otherwise see if one is empty and reflects bad data from Yahoo!
+    ensure!(
+        !timestamps.is_empty(),
+        error::MissingData {
+            reason: "no timestamps for OHLCV data"
+        }
+    );
+    ensure!(
+        !quotes.is_empty(),
+        error::MissingData {
+            reason: "no OHLCV data"
+        }
+    );
 
-   // make sure timestamps lines up with the OHLCV data
-   let quote = &quotes[0];
-   ensure!(timestamps.len() == quote.volumes.len(), error::MissingData { reason: "timestamps do not line up with OHLCV data" });
-   ensure!(timestamps.len() == quote.opens.len(), error::MissingData { reason: "'open' values do not line up the timestamps" });
-   ensure!(timestamps.len() == quote.highs.len(), error::MissingData { reason: "'high' values do not line up the timestamps" });
-   ensure!(timestamps.len() == quote.lows.len(), error::MissingData { reason: "'low' values do not line up the timestamps" });
-   ensure!(timestamps.len() == quote.closes.len(), error::MissingData { reason: "'close' values do not line up the timestamps" });
+    // make sure timestamps lines up with the OHLCV data
+    let quote = &quotes[0];
+    ensure!(
+        timestamps.len() == quote.volumes.len(),
+        error::MissingData {
+            reason: "timestamps do not line up with OHLCV data"
+        }
+    );
+    ensure!(
+        timestamps.len() == quote.opens.len(),
+        error::MissingData {
+            reason: "'open' values do not line up the timestamps"
+        }
+    );
+    ensure!(
+        timestamps.len() == quote.highs.len(),
+        error::MissingData {
+            reason: "'high' values do not line up the timestamps"
+        }
+    );
+    ensure!(
+        timestamps.len() == quote.lows.len(),
+        error::MissingData {
+            reason: "'low' values do not line up the timestamps"
+        }
+    );
+    ensure!(
+        timestamps.len() == quote.closes.len(),
+        error::MissingData {
+            reason: "'close' values do not line up the timestamps"
+        }
+    );
 
-   #[allow(clippy::needless_range_loop)]
-   for i in 0..timestamps.len() {
-      // skip days where we have incomplete data
-      if quote.opens[i].is_none() || quote.highs[i].is_none() || quote.lows[i].is_none() || quote.closes[i].is_none() {
-         continue;
-      }
+    #[allow(clippy::needless_range_loop)]
+    for i in 0..timestamps.len() {
+        // skip days where we have incomplete data
+        if quote.opens[i].is_none()
+            || quote.highs[i].is_none()
+            || quote.lows[i].is_none()
+            || quote.closes[i].is_none()
+        {
+            continue;
+        }
 
-      result.push(Bar {
-         timestamp: timestamps[i] * 1000,
-         open: quote.opens[i].context(error::InternalLogic{ reason: "missing open not caught" })?,
-         high: quote.highs[i].context(error::InternalLogic{ reason: "missing high not caught" })?,
-         low: quote.lows[i].context(error::InternalLogic{ reason: "missing low not caught" })?,
-         close: quote.closes[i].context(error::InternalLogic{ reason: "missing close not caught" })?,
-         volume: quote.volumes[i],
-      })
-   }
+        result.push(Bar {
+            timestamp: timestamps[i] * 1000,
+            open: quote.opens[i].context(error::InternalLogic {
+                reason: "missing open not caught",
+            })?,
+            high: quote.highs[i].context(error::InternalLogic {
+                reason: "missing high not caught",
+            })?,
+            low: quote.lows[i].context(error::InternalLogic {
+                reason: "missing low not caught",
+            })?,
+            close: quote.closes[i].context(error::InternalLogic {
+                reason: "missing close not caught",
+            })?,
+            volume: quote.volumes[i],
+        })
+    }
 
-   let (dividends, splits) = extract_events(data);
-   Ok((result, dividends, splits))
+    let (dividends, splits) = extract_events(data);
+    Ok((result, dividends, splits))
 }
 
 /// Retrieves (at most) 6 months worth of OCLHV data for a symbol
@@ -72,15 +141,16 @@ fn aggregate_bars_and_extract_events(data: yahoo::Data) -> Result<(Vec<Bar>, Vec
 /// async fn main() {
 ///    match history::retrieve("AAPL").await {
 ///       Err(e) => println!("Failed to call Yahoo: {:?}", e),
-///       Ok(data) => 
+///       Ok(data) =>
 ///          for bar in &data {
 ///             println!("On {} Apple closed at ${:.2}", bar.datetime().format("%b %e %Y"), bar.close)
 ///          }
 ///    }
 /// }
 /// ```
-pub async fn retrieve(symbol: &str) -> Result<Vec<Bar>> {
-   aggregate_bars_and_extract_events(yahoo::load_daily(symbol, Interval::_6mo).await?).map(|(bars, _dividends, _splits)| bars)
+pub async fn retrieve(user_agent: &str, symbol: &str) -> Result<Vec<Bar>> {
+    aggregate_bars_and_extract_events(yahoo::load_daily(user_agent, symbol, Interval::_6mo).await?)
+        .map(|(bars, _dividends, _splits)| bars)
 }
 
 /// Retrieves (at most) 6 months worth of OCLHV and corporate action event data for a symbol
@@ -110,8 +180,13 @@ pub async fn retrieve(symbol: &str) -> Result<Vec<Bar>> {
 ///    }
 /// }
 /// ```
-pub async fn retrieve_with_events(symbol: &str) -> Result<(Vec<Bar>, Vec<yahoo::Dividend>, Vec<yahoo::Split>)> {
-    yahoo::load_daily_with_events(symbol, Interval::_6mo).await.and_then(aggregate_bars_and_extract_events)
+pub async fn retrieve_with_events(
+    user_agent: &str,
+    symbol: &str,
+) -> Result<(Vec<Bar>, Vec<yahoo::Dividend>, Vec<yahoo::Split>)> {
+    yahoo::load_daily_with_events(user_agent, symbol, Interval::_6mo)
+        .await
+        .and_then(aggregate_bars_and_extract_events)
 }
 
 /// Retrieves a configurable amount of OCLHV data for a symbol
@@ -130,18 +205,23 @@ pub async fn retrieve_with_events(symbol: &str) -> Result<(Vec<Bar>, Vec<yahoo::
 /// async fn main() {
 ///    match history::retrieve_interval("AAPL", Interval::_5d).await {
 ///       Err(e) => println!("Failed to call Yahoo: {:?}", e),
-///       Ok(data) => 
+///       Ok(data) =>
 ///          for bar in &data {
 ///             println!("On {} Apple closed at ${:.2}", bar.datetime().format("%b %e %Y"), bar.close)
 ///          }
 ///    }
 /// }
 /// ```
-pub async fn retrieve_interval(symbol: &str, interval: Interval) -> Result<Vec<Bar>> {
-   // pre-conditions
-   ensure!(!interval.is_intraday(), error::NoIntraday { interval });
+pub async fn retrieve_interval(
+    user_agent: &str,
+    symbol: &str,
+    interval: Interval,
+) -> Result<Vec<Bar>> {
+    // pre-conditions
+    ensure!(!interval.is_intraday(), error::NoIntraday { interval });
 
-   aggregate_bars_and_extract_events(yahoo::load_daily(symbol, interval).await?).map(|(bars, _dividends, _splits)| bars)
+    aggregate_bars_and_extract_events(yahoo::load_daily(user_agent, symbol, interval).await?)
+        .map(|(bars, _dividends, _splits)| bars)
 }
 
 /// Retrieves a configurable amount of OCLHV and corporate action event data for a symbol.  The amount of
@@ -172,11 +252,17 @@ pub async fn retrieve_interval(symbol: &str, interval: Interval) -> Result<Vec<B
 ///    }
 /// }
 /// ```
-pub async fn retrieve_interval_with_events(symbol: &str, interval: Interval) -> Result<(Vec<Bar>, Vec<yahoo::Dividend>, Vec<yahoo::Split>)> {
-   // pre-conditions
-   ensure!(!interval.is_intraday(), error::NoIntraday { interval });
+pub async fn retrieve_interval_with_events(
+    user_agent: &str,
+    symbol: &str,
+    interval: Interval,
+) -> Result<(Vec<Bar>, Vec<yahoo::Dividend>, Vec<yahoo::Split>)> {
+    // pre-conditions
+    ensure!(!interval.is_intraday(), error::NoIntraday { interval });
 
-   yahoo::load_daily_with_events(symbol, interval).await.and_then(aggregate_bars_and_extract_events)
+    yahoo::load_daily_with_events(user_agent, symbol, interval)
+        .await
+        .and_then(aggregate_bars_and_extract_events)
 }
 
 /// Retrieves OCLHV data for a symbol between a start and end date.
@@ -201,12 +287,23 @@ pub async fn retrieve_interval_with_events(symbol: &str, interval: Interval) -> 
 ///    }
 /// }
 /// ```
-pub async fn retrieve_range(symbol: &str, start: DateTime<Utc>, end: Option<DateTime<Utc>>) -> Result<Vec<Bar>> {
-   // pre-conditions
-   let _end = end.unwrap_or_else(Utc::now);
-   ensure!(_end.signed_duration_since(start).num_seconds() > 0, error::InvalidStartDate);
+pub async fn retrieve_range(
+    user_agent: &str,
+    symbol: &str,
+    start: DateTime<Utc>,
+    end: Option<DateTime<Utc>>,
+) -> Result<Vec<Bar>> {
+    // pre-conditions
+    let _end = end.unwrap_or_else(Utc::now);
+    ensure!(
+        _end.signed_duration_since(start).num_seconds() > 0,
+        error::InvalidStartDate
+    );
 
-   aggregate_bars_and_extract_events(yahoo::load_daily_range(symbol, start.timestamp(), _end.timestamp()).await?).map(|(bars, _dividends, _splits)| bars)
+    aggregate_bars_and_extract_events(
+        yahoo::load_daily_range(user_agent, symbol, start.timestamp(), _end.timestamp()).await?,
+    )
+    .map(|(bars, _dividends, _splits)| bars)
 }
 
 /// Retrieves OCLHV and corporate action event data for a symbol between a start and end date.
@@ -238,10 +335,20 @@ pub async fn retrieve_range(symbol: &str, start: DateTime<Utc>, end: Option<Date
 ///    }
 /// }
 /// ```
-pub async fn retrieve_range_with_events(symbol: &str, start: DateTime<Utc>, end: Option<DateTime<Utc>>) -> Result<(Vec<Bar>, Vec<yahoo::Dividend>, Vec<yahoo::Split>)> {
-   // pre-conditions
-   let _end = end.unwrap_or_else(Utc::now);
-   ensure!(_end.signed_duration_since(start).num_seconds() > 0, error::InvalidStartDate);
+pub async fn retrieve_range_with_events(
+    user_agent: &str,
+    symbol: &str,
+    start: DateTime<Utc>,
+    end: Option<DateTime<Utc>>,
+) -> Result<(Vec<Bar>, Vec<yahoo::Dividend>, Vec<yahoo::Split>)> {
+    // pre-conditions
+    let _end = end.unwrap_or_else(Utc::now);
+    ensure!(
+        _end.signed_duration_since(start).num_seconds() > 0,
+        error::InvalidStartDate
+    );
 
-   yahoo::load_daily_range_with_events(symbol, start.timestamp(), _end.timestamp()).await.and_then(aggregate_bars_and_extract_events)
+    yahoo::load_daily_range_with_events(user_agent, symbol, start.timestamp(), _end.timestamp())
+        .await
+        .and_then(aggregate_bars_and_extract_events)
 }
