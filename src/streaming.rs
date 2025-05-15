@@ -4,7 +4,7 @@ use serde::Serialize;
 use tokio::sync::mpsc;
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 
-use crate::yahoo::{PricingData, PricingData_MarketHoursType};
+use crate::yahoo::{MarketHoursType, PricingData};
 use crate::TradingSession;
 
 use super::Quote;
@@ -14,11 +14,11 @@ struct Subs {
     subscribe: Vec<String>,
 }
 
-fn convert_session(value: PricingData_MarketHoursType) -> TradingSession {
+fn convert_session(value: MarketHoursType) -> TradingSession {
     match value {
-        PricingData_MarketHoursType::PRE_MARKET => TradingSession::PreMarket,
-        PricingData_MarketHoursType::REGULAR_MARKET => TradingSession::Regular,
-        PricingData_MarketHoursType::POST_MARKET => TradingSession::AfterHours,
+        MarketHoursType::PRE_MARKET => TradingSession::PreMarket,
+        MarketHoursType::REGULAR_MARKET => TradingSession::Regular,
+        MarketHoursType::POST_MARKET => TradingSession::AfterHours,
         _ => TradingSession::Other,
     }
 }
@@ -100,7 +100,7 @@ impl Streamer {
                 Quote {
                     symbol: data.id.to_string(),
                     timestamp: data.time as i64,
-                    session: convert_session(data.marketHours),
+                    session: convert_session(data.marketHours.enum_value_or_default()),
                     price: data.price as f64,
                     volume: data.dayVolume as u64,
                 }

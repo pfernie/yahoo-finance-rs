@@ -4,8 +4,8 @@ pub use chart::{
     Dividend, Split,
 };
 
-mod realtime;
-pub use realtime::{PricingData, PricingData_MarketHoursType};
+mod gen;
+pub use gen::realtime::{pricing_data::MarketHoursType, PricingData};
 
 mod web_scraper;
 pub use web_scraper::{scrape, CompanyProfile, QuoteSummaryStore};
